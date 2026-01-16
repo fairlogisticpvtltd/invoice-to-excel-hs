@@ -38,15 +38,28 @@ def extract_text_from_image(image_file):
 
 def parse_invoice_text(text):
     """
-    VERY IMPORTANT:
-    This is a semi-automatic parser.
-    You may need to fine-tune rules based on your invoice format.
+    Improved parser:
+    - Ignores header / title lines
+    - Detects Description/Item, Qty/Quantity, Origin
+    - Extracts only line items
     """
     rows = []
-    lines = text.split("\n")
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+    header_keywords = [
+        "invoice", "tax", "bill to", "ship to", "date",
+        "total", "subtotal", "amount in words", "bank"
+    ]
 
     for line in lines:
-        if any(char.isdigit() for char in line):
+        low = line.lower()
+
+        # Skip header/footer info
+        if any(h in low for h in header_keywords):
+            continue
+
+        # Likely item lines (contain qty or numbers + text)
+        if any(k in low for k in ["qty", "quantity"]) or any(c.isdigit() for c in line):
             rows.append({
                 "Full Description": line,
                 "Brand": "",
@@ -54,8 +67,10 @@ def parse_invoice_text(text):
                 "Size": "",
                 "Qty": "",
                 "Packing": "",
+                "Origin": "",
                 "Total Price": ""
             })
+
     return pd.DataFrame(rows)
 
 

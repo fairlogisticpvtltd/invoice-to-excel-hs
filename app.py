@@ -93,8 +93,20 @@ def map_hs_codes(invoice_df, hs_df):
     hs_units = []
 
     for desc in invoice_df["Full Description"]:
+        # Pre-clean invoice description for better HS matching
+        clean_desc = desc.lower()
+        keywords = [
+            "elbow", "tee", "coupling", "adapter", "union",
+            "pipe", "pvc", "fitting", "valve"
+        ]
+        for k in keywords:
+            if k in clean_desc:
+                clean_desc += f" {k}"
+
         match = process.extractOne(
-            desc, hs_map[desc_col], scorer=fuzz.token_sort_ratio
+            clean_desc,
+            hs_map[desc_col].str.lower(),
+            scorer=fuzz.token_set_ratio
         )
         if match and match[1] > 70:
             row = hs_map.iloc[match[2]]

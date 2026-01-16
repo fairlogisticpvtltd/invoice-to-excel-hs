@@ -60,20 +60,55 @@ def parse_invoice_text(text):
 
 
 def map_hs_codes(invoice_df, hs_df):
-    hs_df.columns = [c.lower() for c in hs_df.columns]
-    hs_map = hs_df[["description", "hs_code"]]
+    # Normalize column names
+    hs_df.columns = [c.strip().lower() for c in hs_df.columns]
+
+    # Auto-detect HS code and description columns
+    desc_col = None
+    hs_col = None
+
+    for col in hs_df.columns:
+        if "desc" in col:
+            desc_col = col
+        if "hs" in col:
+            hs_col = col
+
+    if not desc_col or not hs_col:
+        raise ValueError("HS code file must contain description and hs code columns")
+
+    # Detect optional unit column
+    unit_col = None
+    for col in hs_df.columns:
+        if "unit" in col:
+            unit_col = col
+
+    select_cols = [desc_col, hs_col]
+    if unit_col:
+        select_cols.append(unit_col)
+
+    hs_map = hs_df[select_cols]
 
     hs_codes = []
+    hs_descs = []
+    hs_units = []
+
     for desc in invoice_df["Full Description"]:
-        match, score, idx = process.extractOne(
-            desc, hs_map["description"], scorer=fuzz.token_sort_ratio
+        match = process.extractOne(
+            desc, hs_map[desc_col], scorer=fuzz.token_sort_ratio
         )
-        if score > 70:
-            hs_codes.append(hs_map.iloc[idx]["hs_code"])
+        if match and match[1] > 70:
+            row = hs_map.iloc[match[2]]
+            hs_codes.append(row[hs_col])
+            hs_descs.append(row[desc_col])
+            hs_units.append(row[unit_col] if unit_col else "")
         else:
             hs_codes.append("NOT FOUND")
+            hs_descs.append("NOT FOUND")
+            hs_units.append("")
 
     invoice_df["HS Code"] = hs_codes
+    invoice_df["HS Description"] = hs_descs
+    invoice_df["Unit"] = hs_units
     return invoice_df
 
 # ---------------------- UI ----------------------
